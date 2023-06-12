@@ -192,7 +192,7 @@ def main():
     args = parse_args()
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
-    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True, static_graph=True)
     accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
@@ -260,6 +260,7 @@ def main():
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
     config = AutoConfig.from_pretrained(args.model_name_or_path, num_labels=num_labels, finetuning_task=args.task_name)
+    config.update({"gradient_checkpointing": True})
     if args.model_type == "longformer":
         config.attention_window = args.chunk_size
     elif args.model_type in ["bert", "roberta"]:
@@ -293,9 +294,9 @@ def main():
             (examples[sentence1_key],) if sentence2_key is None else (examples[sentence1_key], examples[sentence2_key])
         )
         result = tokenizer(*texts, padding=padding, max_length=args.max_length, truncation=True, add_special_tokens="cls" not in args.model_mode)
-        if "label" in examples:
-            result["labels"] = examples["label"]
-            result["label_ids"] = [[label_to_id[label.strip()] for label in labels.strip().split(';') if label.strip() != ""] if labels is not None else [] for labels in examples["label"]]
+        if "labels" in examples:
+            result["labels"] = examples["labels"]
+            result["label_ids"] = [[label_to_id[label.strip()] for label in labels.strip().split(';') if label.strip() != ""] if labels is not None else [] for labels in examples["labels"]]
         return result
 
     remove_columns = raw_datasets["train"].column_names if args.train_file is not None else raw_datasets["validation"].column_names
@@ -477,7 +478,13 @@ def main():
             all_preds = (all_preds_raw > t).astype(int)
             metrics = all_metrics(yhat=all_preds, y=all_labels, yhat_raw=all_preds_raw, k=[5,8,15])
             logger.info(f"metrics for threshold {t}: {metrics}")
-
+        import os
+        import json
+        np.save(os.path.join(args.output_dir, f'preds_raw.npy'), all_preds_raw)
+        np.save(os.path.join(args.output_dir, f'gt.npy'), all_labels)
+        with open(os.path.join(args.output_dir, f'label_list.npy'), 'w+') as f:
+            json.dump(label_list, f)
+        
     if args.output_dir is not None and args.num_train_epochs > 0:
         accelerator.wait_for_everyone()
         unwrapped_model = accelerator.unwrap_model(model)
