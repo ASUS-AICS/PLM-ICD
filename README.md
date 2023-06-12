@@ -1,24 +1,5 @@
 # PLM-ICD: Automatic ICD Coding with Pretrained Language Models
-- [ClinicalNLP 2022 Paper](https://aclanthology.org/2022.clinicalnlp-1.2/)
-
-![image](https://github.com/MiuLab/PLM-ICD/assets/2268109/dae49ada-c135-4679-90d2-a00f14884aa8)
-
-## Reference
-Please cite the following paper:
-```
-    @inproceedings{huang-etal-2022-plm,
-        title = "{PLM}-{ICD}: Automatic {ICD} Coding with Pretrained Language Models",
-        author = "Huang, Chao-Wei and Tsai, Shang-Chi and Chen, Yun-Nung",
-        booktitle = "Proceedings of the 4th Clinical Natural Language Processing Workshop",
-        month = jul,
-        year = "2022",
-        address = "Seattle, WA",
-        publisher = "Association for Computational Linguistics",
-        url = "https://aclanthology.org/2022.clinicalnlp-1.2",
-        pages = "10--20",
-    }
-```
-
+- Original Paper. [ClinicalNLP 2022 Paper](https://aclanthology.org/2022.clinicalnlp-1.2/)
 
 ## Requirements
 * Python >= 3.6
@@ -26,60 +7,168 @@ Please cite the following paper:
 * If the specific versions could not be found in your distribution, you could simple remove the version constraint. Our code should work with most versions.
 
 ## Dataset
-Unfortunately, we are not allowed to redistribute the MIMIC dataset.
-Please follow the instructions from [caml-mimic](https://github.com/jamesmullenbach/caml-mimic) to preprocess the MIMIC-2 and MIMIC-3 dataset and place the files under `data/mimic2` and `data/mimic3` respectively.
+Follow the Dataset repository to obtain the dataset.
 
 ## How to run
 ### Pretrained LMs
 Please download the pretrained LMs you want to use from the following link:
 - [BioLM](https://github.com/facebookresearch/bio-lm): RoBERTa-PM models
+
+Other models  (which we have not evaluated) include:
 - [BioBERT](https://github.com/dmis-lab/biobert)
 - [PubMedBERT](https://huggingface.co/microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract): you can also set `--model_name_or_path microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract` when training the model, the script will download the checkpoint automatically.
 
-### Trained Models
-You can also download our [trained models](https://drive.google.com/drive/folders/1oJLgLKu_NZxsSTXU9uFVehxXXJYzTalO?usp=sharing) to skip the training part. We provide 3 trained models:
-- [Trained on MIMIC-3 full](https://drive.google.com/drive/folders/1SXlyh4ydRqlLwed_tiBA2mNCDjVll6gD?usp=sharing)
-- [Trained on MIMIC-3 50](https://drive.google.com/drive/folders/12xRNiaXbwmrAcqzkUo96EpopBuICnWqR?usp=sharing)
-- [Trained on MIMIC-2](https://drive.google.com/drive/folders/1tmopSwLccrBpHCoalAz-oRKAlxBvyF0H?usp=sharing)
-
 ### Training
 1. `cd src`
-2. Run the following command to train a model on MIMIC-3 full.
-```
-python3 run_icd.py \
-    --train_file ../data/mimic3/train_full.csv \
-    --validation_file ../data/mimic3/dev_full.csv \
+2. Run the following command to train a model on MIMIC-IV-9 full.
+```bash
+accelerate launch --gpu_ids $CUDA_VISIBLE_DEVICES run_icd.py \
+    --code_file mimic4_all_icd9.txt \
+    --train_file $MIMIC4_ICD9_DIR/train_full.csv \
+    --validation_file $MIMIC4_ICD9_DIR/dev_full.csv \
     --max_length 3072 \
     --chunk_size 128 \
-    --model_name_or_path ../models/RoBERTa-base-PM-M3-Voc-distill-align-hf \
-    --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 8 \
+    --model_name_or_path ../RoBERTa-base-PM-M3-Voc-distill-align-hf \
+    --per_device_train_batch_size 4 \
+    --gradient_accumulation_steps 2 \
+    --per_device_eval_batch_size 4 \
+    --num_train_epochs 20 \
+    --num_warmup_steps 1000 \
+    --output_dir ../roberta-mimic4-full-icd9 \
+    --model_type roberta \
+    --model_mode laat \
+    --learning_rate 7e-5
+```
+3. Run the following command to train a model on MIMIC-IV-10 full.
+```bash
+accelerate launch --gpu_ids $CUDA_VISIBLE_DEVICES run_icd.py \
+    --code_file ./mimic4_all_icd10.txt \
+    --train_file $MIMIC4_ICD10_DIR/train_full.csv \
+    --validation_file $MIMIC4_ICD10_DIR/dev_full.csv \
+    --max_length 3072 \
+    --chunk_size 128 \
+    --model_name_or_path ../RoBERTa-base-PM-M3-Voc-distill-align-hf \
+    --per_device_train_batch_size 4 \
+    --gradient_accumulation_steps 2 \
     --per_device_eval_batch_size 1 \
     --num_train_epochs 20 \
-    --num_warmup_steps 2000 \
-    --output_dir ../models/roberta-mimic3-full \
+    --num_warmup_steps 1000 \
+    --output_dir ../roberta-mimic4-full-icd10 \
     --model_type roberta \
-    --model_mode laat
+    --model_mode laat \
+    --learning_rate 7e-5
+```
+4. Run the following command to train a model on MIMIC-IV-9 50.
+```bash
+accelerate launch --gpu_ids $CUDA_VISIBLE_DEVICES run_icd.py \
+    --code_file ./top50_icd9_code_list.txt \
+    --train_file $MIMIC4_ICD9_DIR/train_50.csv \
+    --validation_file $MIMIC4_ICD9_DIR/dev_50.csv \
+    --max_length 3072 \
+    --chunk_size 128 \
+    --model_name_or_path ../RoBERTa-base-PM-M3-Voc-distill-align-hf \
+    --per_device_train_batch_size 4 \
+    --gradient_accumulation_steps 1 \
+    --per_device_eval_batch_size 4 \
+    --num_train_epochs 5 \
+    --num_warmup_steps 3000 \
+    --output_dir ../roberta-mimic4-50-icd9-shorter \
+    --model_type roberta \
+    --model_mode laat \
+    --learning_rate 5e-5
+ ```
+6. Run the following command to train a model on MIMIC-IV-10 50.
+```bash
+accelerate launch --gpu_ids $CUDA_VISIBLE_DEVICES run_icd.py \
+    --code_file ./top50_icd10_code_list.txt \
+    --train_file $MIMIC4_ICD10_DIR/train_50.csv \
+    --validation_file $MIMIC4_ICD10_DIR/dev_50.csv \
+    --max_length 3072 \
+    --chunk_size 128 \
+    --model_name_or_path ../RoBERTa-base-PM-M3-Voc-distill-align-hf \
+    --per_device_train_batch_size 4 \
+    --gradient_accumulation_steps 1 \
+    --per_device_eval_batch_size 4 \
+    --num_train_epochs 5 \
+    --num_warmup_steps 3000 \
+    --output_dir ../roberta-mimic4-50-icd10-shorter \
+    --model_type roberta \
+    --model_mode laat \
+    --learning_rate 5e-5
 ```
 
+
 ### Notes
-- If you would like to train BERT-based or Longformer-base models, please set `--model_type [bert|longformer]`.
-- If you would like to train models on MIMIC-3 top-50, please set `--code_50 --code_file ../data/mimic3/ALL_CODES_50.txt`
-- If you would like to train models on MIMIC-2, please set `--code_file ../data/mimic2/ALL_CODES.txt`
 
 ### Inference
 1. `cd src`
-2. Run the following command to evaluate a model on the test set of MIMIC-3 full.
-```
-python3 run_icd.py \
-    --train_file ../data/mimic3/train_full.csv \
-    --validation_file ../data/mimic3/test_full.csv \
+2. Run the following commands to evaluate a model on the test set of `MIMIC-IV-ICD9-full`,  `MIMIC-IV-ICD10-full`, `MIMIC-IV-ICD9-50` and `MIMIC-IV-ICD10-50` (in that order).
+```bash
+python run_icd.py \
+    --code_file mimic4_all_icd9.txt \
+    --train_file $MIMIC4_ICD9_DIR/train_full.csv \
+    --validation_file $MIMIC4_ICD9_DIR/test_full.csv \
     --max_length 3072 \
     --chunk_size 128 \
-    --model_name_or_path ../models/roberta-mimic3-full \
+    --model_name_or_path ../roberta-mimic4-full-icd9 \
+    --per_device_train_batch_size 8 \
+    --gradient_accumulation_steps 1 \
+    --per_device_eval_batch_size 8  \
+    --num_train_epochs 0 \
+    --num_warmup_steps 1000 \
+    --output_dir ../roberta-mimic4-full-icd9 \
+    --model_type roberta \
+    --model_mode laat \
+    --learning_rate 7e-5
+    
+python run_icd.py \
+    --code_file ./mimic4_all_icd10.txt \
+    --train_file $MIMIC4_ICD10_DIR/train_full.csv \
+    --validation_file $MIMIC4_ICD10_DIR/test_full.csv \
+    --max_length 3072 \
+    --chunk_size 128 \
+    --model_name_or_path ../roberta-mimic4-full-icd10 \
+    --per_device_train_batch_size 4 \
+    --gradient_accumulation_steps 2 \
     --per_device_eval_batch_size 1 \
     --num_train_epochs 0 \
-    --output_dir ../models/roberta-mimic3-full \
+    --num_warmup_steps 1000 \
+    --output_dir ../roberta-mimic4-full-icd10 \
     --model_type roberta \
-    --model_mode laat
+    --model_mode laat \
+    --learning_rate 7e-5
+    
+python run_icd.py \
+    --code_file ./top50_icd9_code_list.txt \
+    --train_file $MIMIC4_ICD9_DIR/train_50.csv \
+    --validation_file $MIMIC4_ICD9_DIR/test_50.csv \
+    --max_length 3072 \
+    --chunk_size 128 \
+    --model_name_or_path ../roberta-mimic4-50-icd9-shorter/ \
+    --per_device_train_batch_size 8 \
+    --gradient_accumulation_steps 1 \
+    --per_device_eval_batch_size 8  \
+    --num_train_epochs 0 \
+    --num_warmup_steps 1000 \
+    --output_dir ../roberta-mimic4-50-icd9-shorter/ \
+    --model_type roberta \
+    --model_mode laat \
+    --learning_rate 7e-5
+
+python run_icd.py \
+    --code_file ./top50_icd10_code_list.txt \
+    --train_file $MIMIC4_ICD10_DIR/train_50.csv \
+    --validation_file $MIMIC4_ICD10_DIR/test_50.csv \
+    --max_length 3072 \
+    --chunk_size 128 \
+    --model_name_or_path ../roberta-mimic4-50-icd10-shorter/ \
+    --per_device_train_batch_size 4 \
+    --gradient_accumulation_steps 2 \
+    --per_device_eval_batch_size 1 \
+    --num_train_epochs 0 \
+    --num_warmup_steps 1000 \
+    --output_dir ../roberta-mimic4-50-icd10-shorter/ \
+    --model_type roberta \
+    --model_mode laat \
+    --learning_rate 7e-5
 ```
