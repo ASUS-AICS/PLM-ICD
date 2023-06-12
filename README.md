@@ -7,7 +7,7 @@
 * If the specific versions could not be found in your distribution, you could simple remove the version constraint. Our code should work with most versions.
 
 ## Dataset
-Follow the Dataset repository to obtain the dataset.
+Follow the instruction in the [dataset repository](https://github.com/thomasnguyen92/MIMIC-IV-ICD-data-processing) to obtain the dataset.
 
 ## How to run
 ### Pretrained LMs
